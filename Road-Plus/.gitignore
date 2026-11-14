@@ -1,0 +1,19 @@
+# Build output
+bin/
+obj/
+Library/
+*.user
+.vs/
+.vscode/
+
+# Logs
+*.log
+
+# Local publishing files (contain local paths)
+Properties/Publish-RoadPlus.xml
+Properties/PublishConfiguration.xml
+Properties/PublishProfiles/
+
+# Old images
+Properties/Thumbnail.png
+Properties/Thumbnail-square.png
