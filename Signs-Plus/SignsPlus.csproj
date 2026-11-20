@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!-- Demand+ / Transport+ ile ayni ColossalOrder.ModTemplate duzeni. UI modulu (SignsPlus.mjs) BuildUI hedefiyle derlenir. -->
+	<PropertyGroup>
+		<Configurations>Debug;Release</Configurations>
+		<PublishConfigurationPath>Properties\PublishConfiguration.xml</PublishConfigurationPath>
+		<RootNamespace>SignsPlus</RootNamespace>
+	</PropertyGroup>
+
+	<Import Project="$([System.Environment]::GetEnvironmentVariable('CSII_TOOLPATH', 'EnvironmentVariableTarget.User'))\Mod.props" />
+	<Import Project="$([System.Environment]::GetEnvironmentVariable('CSII_TOOLPATH', 'EnvironmentVariableTarget.User'))\Mod.targets" />
+
+	<ItemGroup>
+		<Reference Include="Game"><Private>false</Private></Reference>
+		<Reference Include="Colossal.Core"><Private>false</Private></Reference>
+		<Reference Include="Colossal.Logging"><Private>false</Private></Reference>
+		<Reference Include="Colossal.IO.AssetDatabase"><Private>false</Private></Reference>
+		<Reference Include="Colossal.Localization"><Private>false</Private></Reference>
+		<Reference Include="Colossal.Mathematics"><Private>false</Private></Reference>
+		<Reference Include="Colossal.UI"><Private>false</Private></Reference>
+		<Reference Include="Colossal.UI.Binding"><Private>false</Private></Reference>
+		<Reference Include="Unity.InputSystem"><Private>false</Private></Reference>
+		<Reference Include="UnityEngine.CoreModule"><Private>false</Private></Reference>
+		<Reference Include="UnityEngine.ImageConversionModule"><Private>false</Private></Reference>
+		<Reference Include="Unity.Burst"><Private>false</Private></Reference>
+		<Reference Include="Unity.Collections"><Private>false</Private></Reference>
+		<Reference Include="Unity.Entities"><Private>false</Private></Reference>
+		<Reference Include="Unity.Mathematics"><Private>false</Private></Reference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Update="System"><Private>false</Private></Reference>
+		<Reference Update="System.Core"><Private>false</Private></Reference>
+		<Reference Update="System.Data"><Private>false</Private></Reference>
+	</ItemGroup>
+
+	<!-- Yazı atlası DLL'in içine gömülür; mod klasörüne ayrı dosya kopyalamaya gerek kalmaz -->
+	<ItemGroup>
+		<EmbeddedResource Include="Resources\font_overpass.png" LogicalName="SignsPlus.font_overpass.png" />
+		<EmbeddedResource Include="Resources\font_overpass.txt" LogicalName="SignsPlus.font_overpass.txt" />
+		<EmbeddedResource Include="Resources\font_overpass_bold.png" LogicalName="SignsPlus.font_overpass_bold.png" />
+		<EmbeddedResource Include="Resources\font_overpass_bold.txt" LogicalName="SignsPlus.font_overpass_bold.txt" />
+		<EmbeddedResource Include="Resources\symbols.txt" LogicalName="SignsPlus.symbols.txt" />
+		<EmbeddedResource Include="Resources\std_signs.txt" LogicalName="SignsPlus.std_signs.txt" />
+		<None Remove="Resources\OFL-Overpass.txt" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Remove="tools\**" />
+		<None Remove="tools\**" />
+		<Compile Remove="UI\**" />
+		<None Remove="UI\**" />
+		<Compile Remove="Assets\**" />
+		<None Remove="Assets\**" />
+	</ItemGroup>
+
+	<!-- Toolchain, kopyalamadan önce mod klasörünü siler. Arayüz modülü, simgeler ve küçük resimler her kopyalamadan sonra
+	     yeniden yazılır, böylece hem derlemede hem Paradox Mods yüklemesinde pakette olur. -->
+	<Target Name="BuildUI" AfterTargets="DeployWIP" Condition="'$(NeedBuild)'">
+		<Exec Command="npm run build" WorkingDirectory="$(ProjectDir)UI" />
+	</Target>
+
+	<ItemGroup>
+		<None Include="$(ModPropsFile)" Link="Properties\Mod.props" />
+		<None Include="$(ModTargetsFile)" Link="Properties\Mod.targets" />
+	</ItemGroup>
+
+</Project>

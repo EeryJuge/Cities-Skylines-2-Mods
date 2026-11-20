@@ -1,0 +1,91 @@
+// tools/make_std_signs.py üretir. Elle düzenlemeyin.
+using System.Collections.Generic;
+
+namespace SignsPlus.Data
+{
+    /// <summary>Standart işaret adları; arayüz "SignsPlus.UI.Std.<ad>" anahtarıyla okur.</summary>
+    internal static class StdSignNames
+    {
+        public static readonly Dictionary<string, string> EN = new Dictionary<string, string>
+        {
+            { "Std.dikkat", "Danger" },
+            { "Std.viraj-sag", "Bend to the right" },
+            { "Std.viraj-sol", "Bend to the left" },
+            { "Std.kavsak", "Crossroads" },
+            { "Std.isik", "Traffic lights" },
+            { "Std.yaya", "Pedestrians" },
+            { "Std.daralma", "Road narrows" },
+            { "Std.kasis", "Uneven road" },
+            { "Std.donel", "Roundabout ahead" },
+            { "Std.iki-yon", "Two-way traffic" },
+            { "Std.dur", "Stop" },
+            { "Std.yolver", "Give way" },
+            { "Std.anayol", "Priority road" },
+            { "Std.hiz", "Speed limit" },
+            { "Std.girilmez", "No entry" },
+            { "Std.kapali", "No vehicles" },
+            { "Std.sola-donulmez", "No left turn" },
+            { "Std.saga-donulmez", "No right turn" },
+            { "Std.u-donulmez", "No U-turn" },
+            { "Std.gecmek-yasak", "No overtaking" },
+            { "Std.park-yasak", "No parking" },
+            { "Std.duraklama-yasak", "No stopping" },
+            { "Std.mecburi-ileri", "Ahead only" },
+            { "Std.mecburi-sag", "Turn right" },
+            { "Std.mecburi-sol", "Turn left" },
+            { "Std.mecburi-ileri-sag", "Ahead or right" },
+            { "Std.mecburi-ileri-sol", "Ahead or left" },
+            { "Std.sagdan-git", "Keep right" },
+            { "Std.soldan-git", "Keep left" },
+            { "Std.donel-mecburi", "Roundabout" },
+            { "Std.park", "Parking" },
+            { "Std.yaya-gecidi", "Pedestrian crossing" },
+            { "Std.tek-yon", "One way" },
+            { "Std.cikmaz", "Dead end" },
+            { "Std.durak", "Bus stop" },
+            { "Std.hastane", "Hospital" },
+            { "Std.ilk-yardim", "First aid" },
+        };
+
+        public static readonly Dictionary<string, string> TR = new Dictionary<string, string>
+        {
+            { "Std.dikkat", "Dikkat" },
+            { "Std.viraj-sag", "Sağa tehlikeli viraj" },
+            { "Std.viraj-sol", "Sola tehlikeli viraj" },
+            { "Std.kavsak", "Kontrolsüz kavşak" },
+            { "Std.isik", "Işıklı işaret cihazı" },
+            { "Std.yaya", "Yaya geçidi (uyarı)" },
+            { "Std.daralma", "Daralan kaplama" },
+            { "Std.kasis", "Kasisli yol" },
+            { "Std.donel", "Dönel kavşak (uyarı)" },
+            { "Std.iki-yon", "İki yönlü trafik" },
+            { "Std.dur", "Dur" },
+            { "Std.yolver", "Yol ver" },
+            { "Std.anayol", "Ana yol" },
+            { "Std.hiz", "Azami hız sınırı" },
+            { "Std.girilmez", "Girilmez" },
+            { "Std.kapali", "Taşıt trafiğine kapalı" },
+            { "Std.sola-donulmez", "Sola dönülmez" },
+            { "Std.saga-donulmez", "Sağa dönülmez" },
+            { "Std.u-donulmez", "U dönüşü yapılmaz" },
+            { "Std.gecmek-yasak", "Öndeki taşıtı geçmek yasak" },
+            { "Std.park-yasak", "Park etmek yasak" },
+            { "Std.duraklama-yasak", "Duraklamak ve park etmek yasak" },
+            { "Std.mecburi-ileri", "İleri mecburi yön" },
+            { "Std.mecburi-sag", "Sağa mecburi yön" },
+            { "Std.mecburi-sol", "Sola mecburi yön" },
+            { "Std.mecburi-ileri-sag", "İleri ve sağa mecburi yön" },
+            { "Std.mecburi-ileri-sol", "İleri ve sola mecburi yön" },
+            { "Std.sagdan-git", "Sağdan gidiniz" },
+            { "Std.soldan-git", "Soldan gidiniz" },
+            { "Std.donel-mecburi", "Ada etrafında dönünüz" },
+            { "Std.park", "Park yeri" },
+            { "Std.yaya-gecidi", "Yaya geçidi" },
+            { "Std.tek-yon", "Tek yönlü yol" },
+            { "Std.cikmaz", "Çıkmaz yol" },
+            { "Std.durak", "Otobüs durağı" },
+            { "Std.hastane", "Hastane" },
+            { "Std.ilk-yardim", "İlk yardım" },
+        };
+    }
+}
