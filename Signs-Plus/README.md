@@ -7,7 +7,7 @@ the sign in your city changes right away.
 
 Turkish signs are the first country pack. **German signs are coming soon.**
 
-Available on Paradox Mods: search for **"Signs+ [ALPHA]"**. Feedback and bug reports: [forum thread](https://forum.paradoxplaza.com/forum/threads/signs-mod-alpha.1951092/)
+Available on Paradox Mods: [Signs+ [ALPHA]](https://mods.paradoxplaza.com/mods/168437/Windows) (Mod ID 168437). Feedback and bug reports: [forum thread](https://forum.paradoxplaza.com/forum/threads/signs-mod-alpha.1951092/)
 or the Issues tab of this repository.
 
 <p align="center"><img src="Properties/Screenshot1.jpg" alt="Motorway gantry at night" width="760"></p>
