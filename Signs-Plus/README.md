@@ -58,7 +58,7 @@ or the comments on Paradox Mods.
   (`%USERPROFILE%\AppData\LocalLow\Colossal Order\Cities Skylines II\ModsData\SignsPlus\<city name>.txt`),
   not in your savegame. Removing the mod does not break your city; the signs just become blank.
 - No Harmony patches. Signs+ draws its own sign textures and does not need Write Everywhere.
-- The five sign models come in the Signs+ asset package, which Paradox Mods installs together with the mod.
+- The five sign models come in the [Signs+ Asset Pack](https://mods.paradoxplaza.com/mods/168436/Windows) (Mod ID 168436), which Paradox Mods installs together with the mod.
 
 ## Coming soon
 

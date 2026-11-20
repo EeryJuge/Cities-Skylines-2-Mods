@@ -4,7 +4,8 @@ Beyaz zemin, soluk ızgara, pastel levhalar (gantry, yer levhası, trafik işare
 işaretler; ortada Unbounded 800 #1800ad "Signs+", altında Orbitron "BY RAGGEND" geçişli ve "ALPHA" etiketi.
 
 Kullanım: python make_thumbnail.py <unbounded-800.woff> <orbitron-600.woff> <çıktı klasörü>
-Çıktı: Thumbnail.png (1080×1080), Logo.png (şeffaf yazı logosu)
+Çıktı: Thumbnail.png (1080×1080), Logo.png (şeffaf yazı logosu).
+4. argüman verilirse (ör. "ASSET PACK") etiket o olur ve yalnızca Thumbnail-AssetPack.jpg (1024×1024) yazılır.
 """
 import sys, os, math
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageChops
@@ -97,7 +98,7 @@ def gradient_text(text, font, size_h):
     grad.putalpha(mask)
     return grad
 
-def title_block(f_main, f_sub, with_glow):
+def title_block(f_main, f_sub, with_glow, badge="ALPHA"):
     """Logo bloğu: 'Signs+', altında solda ALPHA etiketi, sağda BY RAGGEND."""
     text = "Signs+"
     bb = f_main.getbbox(text)
@@ -112,14 +113,14 @@ def title_block(f_main, f_sub, with_glow):
     blk.alpha_composite(sub, (pad + tw - sub.width, sy))
     # ALPHA etiketi
     f_badge = f_sub.font_variant(size=int(f_sub.size * 0.82))
-    abb = f_badge.getbbox("ALPHA")
+    abb = f_badge.getbbox(badge)
     aw, ah = abb[2] - abb[0], abb[3] - abb[1]
     bx0, by0 = pad + s(6), sy - s(6)
     d.rounded_rectangle((bx0, by0, bx0 + aw + s(28), by0 + ah + s(18)), radius=s(10), fill=NAVY + (255,))
-    d.text((bx0 + s(14) - abb[0], by0 + s(9) - abb[1]), "ALPHA", font=f_badge, fill=(255, 255, 255, 255))
+    d.text((bx0 + s(14) - abb[0], by0 + s(9) - abb[1]), badge, font=f_badge, fill=(255, 255, 255, 255))
     return blk
 
-def main(f_unb, f_orb, out):
+def main(f_unb, f_orb, out, badge=None):
     img = Image.new("RGBA", (W, W), (255, 255, 255, 255))
     d = ImageDraw.Draw(img)
     # soluk ızgara
@@ -181,10 +182,15 @@ def main(f_unb, f_orb, out):
     # başlık
     f_main = ImageFont.truetype(f_unb, s(196))
     f_sub = ImageFont.truetype(f_orb, s(36))
-    blk = title_block(f_main, f_sub, True)
+    blk = title_block(f_main, f_sub, True, badge or "ALPHA")
     img.alpha_composite(blk, ((W - blk.width) // 2, s(486)))
 
     os.makedirs(out, exist_ok=True)
+    if badge:
+        # asset paketi küçük resmi: editör 512-1024 px, .jpg, en çok 2 MB istiyor
+        img.convert("RGB").resize((1024, 1024), Image.LANCZOS).save(os.path.join(out, "Thumbnail-AssetPack.jpg"), quality=92)
+        print("yazıldı:", out)
+        return
     img.convert("RGB").resize((1080, 1080), Image.LANCZOS).save(os.path.join(out, "Thumbnail.png"))
     # şeffaf yazı logosu
     logo = title_block(ImageFont.truetype(f_unb, s(150)), ImageFont.truetype(f_orb, s(30)), False)
@@ -193,4 +199,4 @@ def main(f_unb, f_orb, out):
     print("yazıldı:", out)
 
 if __name__ == "__main__":
-    main(*sys.argv[1:4])
+    main(*sys.argv[1:5])
