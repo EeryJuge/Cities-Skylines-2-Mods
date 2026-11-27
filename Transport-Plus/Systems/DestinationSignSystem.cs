@@ -65,11 +65,14 @@ namespace TransportPlus.Systems
         private Material m_Material;
         private int m_Frame, m_Clock, m_LineVersion;
         private bool m_Failed, m_Logged;
+        private PrefabSystem m_PrefabSystem;
+        private int m_MeasureBudget;
 
         protected override void OnCreate()
         {
             base.OnCreate();
             m_Names = World.GetOrCreateSystemManaged<NameSystem>();
+            m_PrefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>();
             m_Query = GetEntityQuery(new EntityQueryDesc
             {
                 All = new[]
@@ -154,6 +157,7 @@ namespace TransportPlus.Systems
         private void Refresh()
         {
             bool turkish = IsTurkish();
+            m_MeasureBudget = 2;
             var ex = new TransitExporter(EntityManager, m_Names);
             var seen = new HashSet<Entity>();
             NativeArray<Entity> entities = m_Query.ToEntityArray(Allocator.Temp);
@@ -280,32 +284,149 @@ namespace TransportPlus.Systems
 
         /// <summary>
         /// Otobüs prefabı için tabela yüzleri (aracın yerel ekseninde: ön +Z, yukarı +Y, sağ +X). Otobüs değilse null.
-        /// Ön tabela ön camın üst kenarında, arka tabela arka camın üstünde, yan tabela sağ yanda ön kapının üstünde.
+        /// Yer, modelin kendi köşe noktalarından ölçülür: prefab sınır kutusu aynaları ve tavandaki klimayı da içerdiği için
+        /// kutuya göre konan tabela aracın önünde ve üstünde havada kalıyordu. Ölçüm her model için bir kez yapılır
+        /// (bir yenilemede en çok iki model); model okunamazsa kutudan tahmin edilir.
         /// </summary>
         private Face[] FacesFor(Entity prefab)
         {
             if (m_PrefabFaces.TryGetValue(prefab, out Face[] faces)) return faces;
-            faces = null;
-            if (EntityManager.HasComponent<PublicTransportVehicleData>(prefab) && EntityManager.HasComponent<CarData>(prefab)
+            if (!(EntityManager.HasComponent<PublicTransportVehicleData>(prefab) && EntityManager.HasComponent<CarData>(prefab)
                 && EntityManager.GetComponentData<PublicTransportVehicleData>(prefab).m_TransportType == TransportType.Bus
-                && EntityManager.HasComponent<ObjectGeometryData>(prefab))
+                && EntityManager.HasComponent<ObjectGeometryData>(prefab)))
             {
-                Colossal.Mathematics.Bounds3 b = EntityManager.GetComponentData<ObjectGeometryData>(prefab).m_Bounds;
-                float width = b.max.x - b.min.x, height = b.max.y - b.min.y, length = b.max.z - b.min.z;
-                if (width > 1f && height > 1.5f && length > 4f)
-                {
-                    float frontW = Mathf.Min(width * 0.78f, 2.0f);
-                    float top = b.max.y - Mathf.Clamp(height * 0.1f, 0.18f, 0.34f);
-                    faces = new[]
-                    {
-                        new Face { Kind = 0, Pos = new Vector3(0f, top, b.max.z + 0.03f), Rot = Quaternion.identity, Size = new Vector2(frontW, frontW / 8f) },
-                        new Face { Kind = 1, Pos = new Vector3(0f, top, b.min.z - 0.03f), Rot = Quaternion.Euler(0f, 180f, 0f), Size = new Vector2(0.62f, 0.31f) },
-                        new Face { Kind = 2, Pos = new Vector3(b.max.x + 0.03f, top - 0.05f, b.max.z - Mathf.Min(2.2f, length * 0.2f)), Rot = Quaternion.Euler(0f, 90f, 0f), Size = new Vector2(1.3f, 1.3f / 8f) },
-                    };
-                }
+                m_PrefabFaces[prefab] = null;
+                return null;
             }
+            Colossal.Mathematics.Bounds3 b = EntityManager.GetComponentData<ObjectGeometryData>(prefab).m_Bounds;
+            if (b.max.x - b.min.x < 1f || b.max.y - b.min.y < 1.5f || b.max.z - b.min.z < 4f)
+            {
+                m_PrefabFaces[prefab] = null;
+                return null;
+            }
+            if (m_MeasureBudget <= 0) return null;   // sonraki yenilemede ölçülür
+            m_MeasureBudget--;
+            faces = null;
+            try { faces = MeasureFaces(prefab, b); }
+            catch (Exception e) { Mod.log.Warn(e, "LED sign: could not read the bus model, using its bounds"); }
+            if (faces == null) faces = BoundsFaces(b);
             m_PrefabFaces[prefab] = faces;
             return faces;
+        }
+
+        /// <summary>Model okunamazsa: sınır kutusundan, aynalar ve tavan klimasının payı düşülerek.</summary>
+        private static Face[] BoundsFaces(Colossal.Mathematics.Bounds3 b)
+        {
+            float height = b.max.y - b.min.y, length = b.max.z - b.min.z;
+            float hw = Mathf.Min(b.max.x, 1.28f);
+            float frontW = Mathf.Min(hw * 2f * 0.78f, 2.0f);
+            float top = b.max.y - Mathf.Clamp(height * 0.14f, 0.38f, 0.55f);
+            float front = b.max.z - 0.2f;
+            return new[]
+            {
+                new Face { Kind = 0, Pos = new Vector3(0f, top, front), Rot = Quaternion.identity, Size = new Vector2(frontW, frontW / 8f) },
+                new Face { Kind = 1, Pos = new Vector3(0f, top, b.min.z + 0.02f), Rot = Quaternion.Euler(0f, 180f, 0f), Size = new Vector2(0.62f, 0.31f) },
+                new Face { Kind = 2, Pos = new Vector3(hw + 0.02f, top - 0.1f, front - Mathf.Min(2.2f, length * 0.2f)), Rot = Quaternion.Euler(0f, 90f, 0f), Size = new Vector2(1.3f, 1.3f / 8f) },
+            };
+        }
+
+        /// <summary>
+        /// Modelin köşe noktalarından gövdeyi ölçer: gövde yarı genişliği (aynalar ön uçta olduğu için aracın orta
+        /// kısmından), tavan kenarı, ön ve arka yüz (aynaların dışında kalan orta şeritten), ön camın eğimi.
+        /// </summary>
+        private Face[] MeasureFaces(Entity prefab, Colossal.Mathematics.Bounds3 b)
+        {
+            if (m_PrefabSystem == null || !EntityManager.HasBuffer<Game.Prefabs.SubMesh>(prefab)) return null;
+            var subs = new List<Game.Prefabs.SubMesh>();
+            foreach (Game.Prefabs.SubMesh sm in EntityManager.GetBuffer<Game.Prefabs.SubMesh>(prefab, true)) subs.Add(sm);
+
+            var pts = new List<Vector3>(8192);
+            foreach (Game.Prefabs.SubMesh sm in subs)
+            {
+                if (!m_PrefabSystem.TryGetPrefab(sm.m_SubMesh, out RenderPrefab render) || render == null) continue;
+                Mesh[] meshes = render.ObtainMeshes();
+                try
+                {
+                    if (meshes == null) continue;
+                    Quaternion q = sm.m_Rotation;
+                    Vector3 off = sm.m_Position;
+                    foreach (Mesh m in meshes)
+                    {
+                        if (m == null || !m.isReadable) continue;
+                        Vector3[] v = m.vertices;
+                        int step = Math.Max(1, v.Length / 60000);
+                        for (int i = 0; i < v.Length; i += step) pts.Add(q * v[i] + off);
+                    }
+                }
+                finally { render.ReleaseMeshes(); }
+            }
+            if (pts.Count < 50) return null;
+
+            Vector3 mn = pts[0], mx = pts[0];
+            foreach (Vector3 p in pts) { mn = Vector3.Min(mn, p); mx = Vector3.Max(mx, p); }
+            float L = mx.z - mn.z, H = mx.y - mn.y;
+            // Köşe noktaları beklenen biçimde değilse (sıkıştırılmış vb.) ölçüme güvenme
+            if (Mathf.Abs(L - (b.max.z - b.min.z)) > 0.25f * (b.max.z - b.min.z) || Mathf.Abs(mx.y - b.max.y) > 0.3f * (b.max.y - b.min.y)) return null;
+
+            // Gövde yarı genişliği ve tavan kenarı: aracın orta %40'ı (aynalar ve tamponlar dışarıda)
+            float hw = 0f;
+            foreach (Vector3 p in pts) if (p.z > mn.z + 0.3f * L && p.z < mx.z - 0.3f * L && p.y > mn.y + 0.3f * H) hw = Mathf.Max(hw, Mathf.Abs(p.x));
+            if (hw < 0.5f) return null;
+            float roofEdge = mn.y;
+            foreach (Vector3 p in pts) if (p.z > mn.z + 0.3f * L && p.z < mx.z - 0.3f * L && Mathf.Abs(p.x) > hw - 0.15f) roofEdge = Mathf.Max(roofEdge, p.y);
+
+            // Ön ve arka yüz: aynaların dışında kalan orta şerit
+            float zF = float.MinValue, zR = float.MaxValue;
+            foreach (Vector3 p in pts)
+                if (Mathf.Abs(p.x) < 0.7f * hw && p.y > mn.y + 0.3f * H) { zF = Mathf.Max(zF, p.z); zR = Mathf.Min(zR, p.z); }
+            if (zF <= zR) return null;
+            float frontTop = mn.y, rearTop = mn.y;
+            foreach (Vector3 p in pts)
+            {
+                if (Mathf.Abs(p.x) >= 0.7f * hw) continue;
+                if (p.z > zF - 0.6f) frontTop = Mathf.Max(frontTop, p.y);
+                if (p.z < zR + 0.6f) rearTop = Mathf.Max(rearTop, p.y);
+            }
+
+            // Ön tabela: ön camın üst kenarı, camın eğimine göre yatırılmış
+            float fw = Mathf.Min(hw * 2f * 0.78f, 2.0f), fh = fw / 8f;
+            float yF = frontTop - 0.1f - fh * 0.5f;
+            float zUp = float.MinValue, zDn = float.MinValue;
+            foreach (Vector3 p in pts)
+            {
+                if (Mathf.Abs(p.x) >= 0.6f * hw) continue;
+                if (p.y >= yF && p.y <= yF + fh * 0.5f) zUp = Mathf.Max(zUp, p.z);
+                else if (p.y < yF && p.y >= yF - fh * 0.5f) zDn = Mathf.Max(zDn, p.z);
+            }
+            if (zUp == float.MinValue) zUp = zF;
+            if (zDn == float.MinValue) zDn = zUp;
+            float pitch = Mathf.Clamp(Mathf.Atan2(zUp - zDn, fh * 0.5f) * Mathf.Rad2Deg, -40f, 40f);
+            Quaternion frontRot = Quaternion.Euler(pitch, 0f, 0f);
+            float zFront = (zUp + zDn) * 0.5f + 0.025f;
+
+            // Arka tabela: arka camın üstü
+            float rh = 0.31f, yR = rearTop - 0.1f - rh * 0.5f;
+            float zRear = float.MaxValue;
+            foreach (Vector3 p in pts)
+                if (Mathf.Abs(p.x) < 0.5f * hw && Mathf.Abs(p.y - yR) < rh * 0.5f) zRear = Mathf.Min(zRear, p.z);
+            if (zRear == float.MaxValue) zRear = zR;
+
+            // Yan tabela: sağ yanda, ön kapının arkasındaki ilk camın üst kenarı
+            float sw = 1.3f, sh = sw / 8f;
+            float zS = zF - Mathf.Clamp(L * 0.2f, 1.2f, 2.2f);
+            float yS = roofEdge - 0.2f - sh * 0.5f;
+            float xS = 0f;
+            foreach (Vector3 p in pts)
+                if (p.x > 0f && Mathf.Abs(p.z - zS) < sw * 0.5f && Mathf.Abs(p.y - yS) < 0.12f) xS = Mathf.Max(xS, p.x);
+            if (xS <= 0.3f || xS > hw + 0.05f) xS = hw;
+
+            Mod.log.Info($"LED sign geometry {m_PrefabSystem.GetPrefabName(prefab)}: half width {hw:0.00}, roof {roofEdge:0.00}, front {zFront:0.00} @ {yF:0.00} pitch {pitch:0}, rear {zRear:0.00}, bounds z {b.max.z:0.00} y {b.max.y:0.00}");
+            return new[]
+            {
+                new Face { Kind = 0, Pos = new Vector3(0f, yF, zFront), Rot = frontRot, Size = new Vector2(fw, fh) },
+                new Face { Kind = 1, Pos = new Vector3(0f, yR, zRear - 0.025f), Rot = Quaternion.Euler(0f, 180f, 0f), Size = new Vector2(0.62f, rh) },
+                new Face { Kind = 2, Pos = new Vector3(xS + 0.025f, yS, zS), Rot = Quaternion.Euler(0f, 90f, 0f), Size = new Vector2(sw, sh) },
+            };
         }
 
         // ---------------------------------------------------------------- dokular
