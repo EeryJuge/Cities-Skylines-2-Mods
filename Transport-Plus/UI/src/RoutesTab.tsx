@@ -157,7 +157,7 @@ export const RoutesTab = ({ tr, typeName }: { tr: TR; typeName: (t: string) => s
           <div style={{ ...S.btn, background: world ? C.accent : "transparent", color: world ? "#0d0f13" : C.ink, borderColor: world ? C.accent : C.rule }}
             onClick={() => setWorldView(!world)}>{world ? tr("WorldOff", "Back to normal view") : tr("WorldOn", "Show in city")}</div>
           <span style={{ flex: 1 }} />
-          <Seg items={[[0, "#"], [1, tr("SortWait", "Waiting")], [2, tr("SortVeh", "Vehicles")]]}
+          <Seg items={[[0, tr("SortNum", "No.")], [1, tr("SortWait", "Waiting")], [2, tr("SortVeh", "Vehicles")]]}
             value={sort === "num" ? 0 : sort === "wait" ? 1 : 2} onPick={v => setSort(v === 0 ? "num" : v === 1 ? "wait" : "veh")} />
         </div>
         <div style={S.chips}>

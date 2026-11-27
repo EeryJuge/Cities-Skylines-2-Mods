@@ -37,7 +37,7 @@ Feedback and bug reports: [forum thread](https://forum.paradoxplaza.com/forum/th
 **Intercity buses**
 - Give buses that come from outside the city their own models, separate from city buses
 
-Open it with the button at the top left or **Shift + T**.
+Open it with the button at the top left or **Shift + T**. The tabs are Network map, Lines, Taxi and **Wiki**, an in-game guide to every feature.
 
 ## Compatibility
 
@@ -59,7 +59,7 @@ Open it with the button at the top left or **Shift + T**.
 | `Systems/DestinationSignSystem.cs`, `LineNames.cs`, `Rendering/` | LED destination signs on buses |
 | `Systems/TaxiCoachSystem.cs`, `TaxiFareSystem.cs` | Taxi tab, fares and intercity bus models |
 | `Systems/SvgRaster.cs`, `WaterContours.cs` | PNG export and water outlines |
-| `UI/` | Window, tabs and map drawing (React, built with esbuild) |
+| `UI/` | Window, tabs, in-game wiki (`UI/src/WikiTab.tsx`) and map drawing (React, built with esbuild) |
 
 ## Building
 

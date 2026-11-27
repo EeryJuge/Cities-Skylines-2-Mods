@@ -6,6 +6,7 @@ import { useOpen } from "./useOpen";
 import { TransitMap, TYPE_ORDER, LineType, LabelLevel, chipText, LIGHT, DARK } from "./transitMap";
 import { RoutesTab } from "./RoutesTab";
 import { TaxiTab } from "./TaxiTab";
+import { WikiTab } from "./WikiTab";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ICON } from "./TransportButton";
 import { parseMarkup, drawElements } from "./canvasSvg";
@@ -30,7 +31,7 @@ const WindowError = ({ message, retry, close }: { message: string; retry: () => 
     </div>
   </div>
 );
-type Tab = "net" | "routes" | "taxi";
+type Tab = "net" | "routes" | "taxi" | "wiki";
 let savedTab: Tab = "net";
 
 /* Menünün konumu ve boyutu: kapatıp açınca aynı yerde açılır */
@@ -67,6 +68,8 @@ const S: Record<string, CSSProperties> = {
   notice: { position: "absolute", left: "50%", bottom: "14rem", transform: "translateX(-50%)", display: "flex", alignItems: "center", background: "rgba(12,14,18,0.95)", border: `1px solid ${C.rule}`, borderRadius: "8rem", padding: "8rem 10rem 8rem 14rem", fontSize: "13rem", whiteSpace: "nowrap" },
   primary: { padding: "7rem 14rem", borderRadius: "6rem", fontSize: "13rem", fontWeight: 700, background: C.accent, color: "#0d0f13", textAlign: "center", cursor: "pointer", marginTop: "12rem" },
   grip: { position: "absolute", right: 0, bottom: 0, width: "18rem", height: "18rem", cursor: "nwse-resize", borderRight: `3rem solid ${C.muted}`, borderBottom: `3rem solid ${C.muted}`, opacity: 0.5 },
+  tabs: { display: "flex", background: "rgba(12,14,18,0.92)", borderBottom: `1px solid ${C.rule}` },
+  tab: { flex: 1, textAlign: "center", padding: "9rem 4rem 7rem", fontSize: "13rem", fontWeight: 600, cursor: "pointer", borderBottom: "2rem solid transparent", whiteSpace: "nowrap" },
   seg: { display: "flex", border: `1px solid ${C.rule}`, borderRadius: "16rem", padding: "2rem", marginRight: "10rem" },
   segBtn: { padding: "5rem 14rem", borderRadius: "14rem", fontSize: "13rem", fontWeight: 600, color: C.ink, cursor: "pointer" },
   btn: { padding: "6rem 12rem", border: `1px solid ${C.rule}`, borderRadius: "6rem", fontSize: "13rem", fontWeight: 600, color: C.ink, marginLeft: "8rem", cursor: "pointer" },
@@ -387,13 +390,8 @@ const MapWindowInner = () => {
       <div style={S.head}>
         <div style={S.title} onMouseDown={e => startFrame(e, "move")}>
           <img src={ICON} style={S.icon} />
-          {tab === "net" ? <span>{tr("Title", "Transport+")}</span> : null}
-          {tab === "net" && map.M && map.M.city ? <span style={{ color: C.muted, fontWeight: 400, marginLeft: "8rem" }}>{map.M.city}</span> : null}
-        </div>
-        <div style={S.seg}>
-          <div style={{ ...S.segBtn, background: tab === "net" ? C.accent : "transparent", color: tab === "net" ? "#0d0f13" : C.ink }} onClick={() => setTab("net")}>{tr("TabNetwork", "Network map")}</div>
-          <div style={{ ...S.segBtn, background: tab === "routes" ? C.accent : "transparent", color: tab === "routes" ? "#0d0f13" : C.ink }} onClick={() => { setSaveOpen(false); setTab("routes"); }}>{tr("TabRoutes", "Lines")}</div>
-          <div style={{ ...S.segBtn, background: tab === "taxi" ? C.accent : "transparent", color: tab === "taxi" ? "#0d0f13" : C.ink }} onClick={() => { setSaveOpen(false); setTab("taxi"); }}>{tr("TabTaxi", "Taxi")}</div>
+          <span>{tr("Title", "Transport+")}</span>
+          {tab === "net" && map.M && map.M.city ? <span style={{ color: C.muted, fontWeight: 400, marginLeft: "8rem", fontSize: "14rem" }}>{map.M.city}</span> : null}
         </div>
         {tab === "net" ? (
           <div style={S.seg}>
@@ -401,12 +399,19 @@ const MapWindowInner = () => {
             <div style={{ ...S.segBtn, background: mode === "geo" ? C.ink : "transparent", color: mode === "geo" ? "#16191f" : C.ink }} onClick={() => switchMode("geo")}>{tr("Geographic", "Geographic")}</div>
           </div>
         ) : null}
-        {tab !== "taxi" ? <div style={S.btn} onClick={() => { if (tab === "net") refreshMap(); else refreshRoutes(); }}>{tr("Refresh", "Refresh")}</div> : null}
+        {tab === "net" || tab === "routes" ? <div style={S.btn} onClick={() => { if (tab === "net") refreshMap(); else refreshRoutes(); }}>{tr("Refresh", "Refresh")}</div> : null}
         {tab === "net" ? (
           <div style={{ ...S.btn, background: saveOpen ? C.hover : "transparent", opacity: map.M ? 1 : 0.4 }}
             onClick={() => map.M && setSaveOpen(!saveOpen)}>{saving ? tr("Saving", "Saving…") : tr("SaveImage", "Save image")}</div>
         ) : null}
         <div style={S.close} title={tr("Close", "Close")} onClick={() => setOpen(false)}>×</div>
+      </div>
+      {/* Sekmeler yan yana, pencere genişliğine eşit bölünmüş */}
+      <div style={S.tabs}>
+        {([["net", tr("TabNetwork", "Map")], ["routes", tr("TabRoutes", "Lines")], ["taxi", tr("TabTaxi", "Taxi")], ["wiki", tr("TabWiki", "Wiki")]] as [Tab, string][]).map(([k, label]) => (
+          <div key={k} style={{ ...S.tab, color: tab === k ? C.ink : C.muted, borderBottomColor: tab === k ? C.accent : "transparent", background: tab === k ? "rgba(94,166,236,0.08)" : "transparent" }}
+            onClick={() => { setSaveOpen(false); setTab(k); }}>{label}</div>
+        ))}
       </div>
       {saveOpen ? (
         <div style={S.pop} onMouseDown={stop} onMouseUp={stop}>
@@ -432,6 +437,8 @@ const MapWindowInner = () => {
         <div style={S.body}><ErrorBoundary fallback={(m, retry) => <TabError message={m} retry={retry} />}><RoutesTab tr={tr} typeName={typeName} /></ErrorBoundary></div>
       ) : tab === "taxi" ? (
         <div style={S.body}><ErrorBoundary fallback={(m, retry) => <TabError message={m} retry={retry} />}><TaxiTab tr={tr} /></ErrorBoundary></div>
+      ) : tab === "wiki" ? (
+        <div style={S.body}><ErrorBoundary fallback={(m, retry) => <TabError message={m} retry={retry} />}><WikiTab tr={tr} openTab={t => setTab(t)} /></ErrorBoundary></div>
       ) : (
       <div style={S.body}>
         <div style={S.side}>
