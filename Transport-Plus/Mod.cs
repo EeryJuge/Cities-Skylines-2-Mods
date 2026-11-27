@@ -12,7 +12,7 @@ namespace TransportPlus
         public static readonly ILog log = LogManager.GetLogger($"{nameof(TransportPlus)}.{nameof(Mod)}").SetShowsErrorsInUI(false);
         public static Setting Settings { get; private set; }
 
-        public const string Version = "0.3.1";
+        public const string Version = "0.4";
 
         /// <summary>
         /// Her adım ayrı korunur: çok modlu kurulumlarda bir adım hata verirse (0.3'te bildirilen "menü açılmıyor" sorunu)

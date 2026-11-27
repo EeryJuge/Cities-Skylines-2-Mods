@@ -8,7 +8,8 @@ and one panel to run every line, vehicle, stop, taxi and intercity bus.
 Available on Paradox Mods: search for **"Transport+ by Raggend"** (Mod ID 166323).
 Feedback and bug reports: [forum thread](https://forum.paradoxplaza.com/forum/threads/metro-and-train-mapping-in-cities-skylines-2.1948622/) or the Issues tab of this repository.
 
-<p align="center"><img src="Properties/Screenshot1.jpg" alt="Routes drawn on the city with the line manager" width="800"></p>
+<p align="center"><img src="Properties/Screenshot1.jpg" alt="Network map" width="800"></p>
+<p align="center"><img src="Properties/Screenshot2.jpg" alt="Routes drawn on the city" width="400"> <img src="Properties/Screenshot4.jpg" alt="LED destination signs" width="400"></p>
 
 ## Features
 
@@ -36,6 +37,9 @@ Feedback and bug reports: [forum thread](https://forum.paradoxplaza.com/forum/th
 
 **Intercity buses**
 - Give buses that come from outside the city their own models, separate from city buses
+
+**Wiki**
+- A Wiki tab in the window explains every feature, with a button that opens the right tab
 
 Open it with the button at the top left or **Shift + T**. The tabs are Network map, Lines, Taxi and **Wiki**, an in-game guide to every feature.
 
