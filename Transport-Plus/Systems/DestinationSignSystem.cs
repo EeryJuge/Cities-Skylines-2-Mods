@@ -454,17 +454,21 @@ namespace TransportPlus.Systems
             }
             if (extreme == float.MinValue || extreme == float.MaxValue) return default;
 
-            // Yüzün dik kısmı: en uç noktaya 0,7 m'den yakın ve bir alttaki örnekten en çok 1,2 cm geride olan ardışık örnekler.
-            // Aşağıdan yukarı yürünür; tavana dönüş (2 cm yükselirken 1,2 cm'den fazla geri çekilme, yaklaşık 30°) yüzün sonudur.
-            int top = -1;
+            // Yüzün dik kısımları: en uç noktaya 0,7 m'den yakın, 2 cm yükselirken en çok 1,2 cm geri çekilen (yaklaşık 30°)
+            // ve 5 cm'den fazla öne çıkmayan ardışık örnekler. Tampon, kaput ve tavan kıvrımı bu dizileri böler; en uzun
+            // dik dizi ön cam (arkada arka cam) sayılır ve tabela onun üst kenarına konur.
+            int top = -1, bestLen = -1, runStart = -1;
             for (int i = 0; i < n; i++)
             {
-                if (!hit[i]) { if (top >= 0) break; continue; }
-                bool onFace = Mathf.Abs(zs[i] - extreme) < 0.7f;
-                if (!onFace) { if (top >= 0) break; continue; }
-                if (top >= 0 && hit[i - 1] && (zs[i - 1] - zs[i]) * dir > 0.012f) break;
-                top = i;
+                bool ok = hit[i] && Mathf.Abs(zs[i] - extreme) < 0.7f;
+                bool cont = ok && runStart >= 0 && hit[i - 1]
+                    && (zs[i - 1] - zs[i]) * dir <= 0.012f && (zs[i] - zs[i - 1]) * dir <= 0.05f;
+                if (!cont) runStart = ok ? i : -1;
+                if (runStart < 0) continue;
+                int len = i - runStart;
+                if (len >= bestLen) { bestLen = len; top = i; }
             }
+            if (bestLen < 5) top = -1;   // 10 cm'den kısa dik yüz yok
             if (top < 0) return default;
             faceTop = yLow + top * kStep;
             float yc = faceTop - 0.04f - h * 0.5f;
