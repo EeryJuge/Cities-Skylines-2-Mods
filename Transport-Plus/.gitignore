@@ -1,0 +1,18 @@
+# Oyunun kendi DLL'leri (build.bat inceleme için kopyalar) paylaşılmaz
+tools/ref/
+bin/
+obj/
+UI/node_modules/
+__pycache__/
+*.log
+.vs/
+.vscode/
+*.user
+
+# Local publishing files (contain local paths)
+Properties/PublishConfiguration.xml
+Properties/PublishProfiles/
+publish*.bat
+
+# Sign models are published as the Signs+ asset package
+Assets/

@@ -1,0 +1,16 @@
+{
+  "name": "transportplus-ui",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.2"
+  },
+  "dependencies": {
+    "@types/react": "^18.3.31",
+    "typescript": "5.4"
+  }
+}
