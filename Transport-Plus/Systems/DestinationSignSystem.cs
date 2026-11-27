@@ -331,8 +331,9 @@ namespace TransportPlus.Systems
         }
 
         /// <summary>
-        /// Modelin köşe noktalarından gövdeyi ölçer: gövde yarı genişliği (aynalar ön uçta olduğu için aracın orta
-        /// kısmından), tavan kenarı, ön ve arka yüz (aynaların dışında kalan orta şeritten), ön camın eğimi.
+        /// Modeli ölçer. Uç noktalar (gövde genişliği, tavan kenarı, ön/arka uç) köşe noktalarından; ön camın ve arka
+        /// camın yüzeyi ise üçgenlere ışın atılarak bulunur (büyük düz yüzeylerde köşe noktası seyrek olduğu için
+        /// yalnız köşe noktasına bakınca tabela gövdenin içinde kalıyordu).
         /// </summary>
         private Face[] MeasureFaces(Entity prefab, Colossal.Mathematics.Bounds3 b)
         {
@@ -340,7 +341,7 @@ namespace TransportPlus.Systems
             var subs = new List<Game.Prefabs.SubMesh>();
             foreach (Game.Prefabs.SubMesh sm in EntityManager.GetBuffer<Game.Prefabs.SubMesh>(prefab, true)) subs.Add(sm);
 
-            var pts = new List<Vector3>(8192);
+            var tri = new List<Vector3>(30000);
             foreach (Game.Prefabs.SubMesh sm in subs)
             {
                 if (!m_PrefabSystem.TryGetPrefab(sm.m_SubMesh, out RenderPrefab render) || render == null) continue;
@@ -354,79 +355,158 @@ namespace TransportPlus.Systems
                     {
                         if (m == null || !m.isReadable) continue;
                         Vector3[] v = m.vertices;
-                        int step = Math.Max(1, v.Length / 60000);
-                        for (int i = 0; i < v.Length; i += step) pts.Add(q * v[i] + off);
+                        int[] idx = m.triangles;
+                        if (idx.Length > 900000) continue;
+                        for (int i = 0; i + 2 < idx.Length; i += 3)
+                        {
+                            tri.Add(q * v[idx[i]] + off);
+                            tri.Add(q * v[idx[i + 1]] + off);
+                            tri.Add(q * v[idx[i + 2]] + off);
+                        }
                     }
                 }
                 finally { render.ReleaseMeshes(); }
             }
-            if (pts.Count < 50) return null;
+            if (tri.Count < 150) return null;
 
-            Vector3 mn = pts[0], mx = pts[0];
-            foreach (Vector3 p in pts) { mn = Vector3.Min(mn, p); mx = Vector3.Max(mx, p); }
+            Vector3 mn = tri[0], mx = tri[0];
+            foreach (Vector3 p in tri) { mn = Vector3.Min(mn, p); mx = Vector3.Max(mx, p); }
             float L = mx.z - mn.z, H = mx.y - mn.y;
-            // Köşe noktaları beklenen biçimde değilse (sıkıştırılmış vb.) ölçüme güvenme
             if (Mathf.Abs(L - (b.max.z - b.min.z)) > 0.25f * (b.max.z - b.min.z) || Mathf.Abs(mx.y - b.max.y) > 0.3f * (b.max.y - b.min.y)) return null;
 
             // Gövde yarı genişliği ve tavan kenarı: aracın orta %40'ı (aynalar ve tamponlar dışarıda)
             float hw = 0f;
-            foreach (Vector3 p in pts) if (p.z > mn.z + 0.3f * L && p.z < mx.z - 0.3f * L && p.y > mn.y + 0.3f * H) hw = Mathf.Max(hw, Mathf.Abs(p.x));
+            foreach (Vector3 p in tri) if (p.z > mn.z + 0.3f * L && p.z < mx.z - 0.3f * L && p.y > mn.y + 0.3f * H) hw = Mathf.Max(hw, Mathf.Abs(p.x));
             if (hw < 0.5f) return null;
             float roofEdge = mn.y;
-            foreach (Vector3 p in pts) if (p.z > mn.z + 0.3f * L && p.z < mx.z - 0.3f * L && Mathf.Abs(p.x) > hw - 0.15f) roofEdge = Mathf.Max(roofEdge, p.y);
+            foreach (Vector3 p in tri) if (p.z > mn.z + 0.3f * L && p.z < mx.z - 0.3f * L && Mathf.Abs(p.x) > hw - 0.15f) roofEdge = Mathf.Max(roofEdge, p.y);
 
-            // Ön ve arka yüz: aynaların dışında kalan orta şerit
-            float zF = float.MinValue, zR = float.MaxValue;
-            foreach (Vector3 p in pts)
-                if (Mathf.Abs(p.x) < 0.7f * hw && p.y > mn.y + 0.3f * H) { zF = Mathf.Max(zF, p.z); zR = Mathf.Min(zR, p.z); }
-            if (zF <= zR) return null;
-            float frontTop = mn.y, rearTop = mn.y;
-            foreach (Vector3 p in pts)
-            {
-                if (Mathf.Abs(p.x) >= 0.7f * hw) continue;
-                if (p.z > zF - 0.6f) frontTop = Mathf.Max(frontTop, p.y);
-                if (p.z < zR + 0.6f) rearTop = Mathf.Max(rearTop, p.y);
-            }
-
-            // Ön tabela: ön camın üst kenarı, camın eğimine göre yatırılmış
             float fw = Mathf.Min(hw * 2f * 0.78f, 2.0f), fh = fw / 8f;
-            float yF = frontTop - 0.1f - fh * 0.5f;
-            float zUp = float.MinValue, zDn = float.MinValue;
-            foreach (Vector3 p in pts)
+            float yLow = mn.y + 0.35f * H;
+
+            // Ön yüz: aracın ortasından öne doğru profil; ön yüzün dik kısmının bittiği yer (tavana döndüğü yer) camın üstü
+            // Işınlar yalnızca o uca yakın üçgenlere atılır (hız için)
+            var frontTri = new List<Vector3>(); var rearTri = new List<Vector3>(); var midTri = new List<Vector3>();
+            for (int i = 0; i + 2 < tri.Count; i += 3)
             {
-                if (Mathf.Abs(p.x) >= 0.6f * hw) continue;
-                if (p.y >= yF && p.y <= yF + fh * 0.5f) zUp = Mathf.Max(zUp, p.z);
-                else if (p.y < yF && p.y >= yF - fh * 0.5f) zDn = Mathf.Max(zDn, p.z);
+                float zmax = Mathf.Max(tri[i].z, Mathf.Max(tri[i + 1].z, tri[i + 2].z));
+                float zmin = Mathf.Min(tri[i].z, Mathf.Min(tri[i + 1].z, tri[i + 2].z));
+                List<Vector3> dst = zmax > mx.z - 1.5f ? frontTri : null;
+                if (dst != null) { dst.Add(tri[i]); dst.Add(tri[i + 1]); dst.Add(tri[i + 2]); }
+                if (zmin < mn.z + 1.5f) { rearTri.Add(tri[i]); rearTri.Add(tri[i + 1]); rearTri.Add(tri[i + 2]); }
+                if (zmax > mn.z + 0.5f && zmin < mx.z - 0.5f) { midTri.Add(tri[i]); midTri.Add(tri[i + 1]); midTri.Add(tri[i + 2]); }
             }
-            if (zUp == float.MinValue) zUp = zF;
-            if (zDn == float.MinValue) zDn = zUp;
-            float pitch = Mathf.Clamp(Mathf.Atan2(zUp - zDn, fh * 0.5f) * Mathf.Rad2Deg, -40f, 40f);
-            Quaternion frontRot = Quaternion.Euler(pitch, 0f, 0f);
-            float zFront = (zUp + zDn) * 0.5f + 0.025f;
+            Face front = FaceOnProfile(frontTri, +1, yLow, mx.y, fw, fh, 0f, out float frontTopY, out float frontPitch);
+            // Arka yüz
+            Face rear = FaceOnProfile(rearTri, -1, yLow, mx.y, 0.62f, 0.31f, 0f, out float rearTopY, out _);
+            if (front.Size.x <= 0f) return null;
+            if (rear.Size.x <= 0f) rear = new Face { Kind = 1, Pos = new Vector3(0f, roofEdge - 0.3f, mn.z - 0.02f), Rot = Quaternion.Euler(0f, 180f, 0f), Size = new Vector2(0.62f, 0.31f) };
+            front.Kind = 0;
+            rear.Kind = 1;
 
-            // Arka tabela: arka camın üstü
-            float rh = 0.31f, yR = rearTop - 0.1f - rh * 0.5f;
-            float zRear = float.MaxValue;
-            foreach (Vector3 p in pts)
-                if (Mathf.Abs(p.x) < 0.5f * hw && Mathf.Abs(p.y - yR) < rh * 0.5f) zRear = Mathf.Min(zRear, p.z);
-            if (zRear == float.MaxValue) zRear = zR;
-
-            // Yan tabela: sağ yanda, ön kapının arkasındaki ilk camın üst kenarı
+            // Yan tabela: sağ yanda, ön kapının arkasındaki ilk camın üst kenarı, gövde yüzeyine ışınla
             float sw = 1.3f, sh = sw / 8f;
-            float zS = zF - Mathf.Clamp(L * 0.2f, 1.2f, 2.2f);
+            float zS = front.Pos.z - Mathf.Clamp(L * 0.2f, 1.2f, 2.2f);
             float yS = roofEdge - 0.2f - sh * 0.5f;
-            float xS = 0f;
-            foreach (Vector3 p in pts)
-                if (p.x > 0f && Mathf.Abs(p.z - zS) < sw * 0.5f && Mathf.Abs(p.y - yS) < 0.12f) xS = Mathf.Max(xS, p.x);
-            if (xS <= 0.3f || xS > hw + 0.05f) xS = hw;
+            float xS = float.MinValue;
+            for (int k = -1; k <= 1; k++)
+                for (int j = -1; j <= 1; j += 2)
+                    if (Cast(midTri, 0, zS + k * sw * 0.45f, yS + j * sh * 0.5f, true, out float hx)) xS = Mathf.Max(xS, hx);
+            if (xS < 0.3f || xS > hw + 0.1f) xS = hw;
 
-            Mod.log.Info($"LED sign geometry {m_PrefabSystem.GetPrefabName(prefab)}: half width {hw:0.00}, roof {roofEdge:0.00}, front {zFront:0.00} @ {yF:0.00} pitch {pitch:0}, rear {zRear:0.00}, bounds z {b.max.z:0.00} y {b.max.y:0.00}");
+            Mod.log.Info($"LED sign geometry {m_PrefabSystem.GetPrefabName(prefab)}: {tri.Count / 3} triangles, half width {hw:0.00}, roof {roofEdge:0.00}, " +
+                $"front {front.Pos.z:0.00} @ {front.Pos.y:0.00} (face top {frontTopY:0.00}, pitch {frontPitch:0}), rear {rear.Pos.z:0.00} @ {rear.Pos.y:0.00}, side {xS:0.00}, bounds z {b.min.z:0.00}..{b.max.z:0.00} y {b.max.y:0.00}");
             return new[]
             {
-                new Face { Kind = 0, Pos = new Vector3(0f, yF, zFront), Rot = frontRot, Size = new Vector2(fw, fh) },
-                new Face { Kind = 1, Pos = new Vector3(0f, yR, zRear - 0.025f), Rot = Quaternion.Euler(0f, 180f, 0f), Size = new Vector2(0.62f, rh) },
+                front,
+                rear,
                 new Face { Kind = 2, Pos = new Vector3(xS + 0.025f, yS, zS), Rot = Quaternion.Euler(0f, 90f, 0f), Size = new Vector2(sw, sh) },
             };
+        }
+
+        /// <summary>
+        /// Ön (dir +1) ya da arka (dir -1) yüzün x = 0 hattındaki profilini 2 cm aralıkla çıkarır, yüzün dik kısmının en
+        /// üstünü bulur ve tabelayı onun hemen altına, yüzeyin eğimine göre yatırarak koyar. Bulunamazsa Size sıfır.
+        /// </summary>
+        private static Face FaceOnProfile(List<Vector3> tri, int dir, float yLow, float yHigh, float w, float h, float x0, out float faceTop, out float pitch)
+        {
+            faceTop = 0f; pitch = 0f;
+            const float kStep = 0.02f;
+            int n = Mathf.Max(2, Mathf.CeilToInt((yHigh - yLow) / kStep) + 1);
+            var zs = new float[n];
+            var hit = new bool[n];
+            float extreme = dir > 0 ? float.MinValue : float.MaxValue;
+            for (int i = 0; i < n; i++)
+            {
+                float y = yLow + i * kStep;
+                float best = dir > 0 ? float.MinValue : float.MaxValue;
+                bool any = false;
+                // Ortada ve iki yanda; en önde (arkada) olan alınır ki tabela kavisli camın içinde kalmasın
+                for (int k = -1; k <= 1; k++)
+                {
+                    if (!Cast(tri, 2, x0 + k * w * 0.35f, y, dir > 0, out float z)) continue;
+                    any = true;
+                    best = dir > 0 ? Mathf.Max(best, z) : Mathf.Min(best, z);
+                }
+                hit[i] = any;
+                zs[i] = best;
+                if (any) extreme = dir > 0 ? Mathf.Max(extreme, best) : Mathf.Min(extreme, best);
+            }
+            if (extreme == float.MinValue || extreme == float.MaxValue) return default;
+
+            // Yüzün dik kısmı: en uç noktaya 0,7 m'den yakın ve bir alttaki örnekten en çok 1,2 cm geride olan ardışık örnekler.
+            // Aşağıdan yukarı yürünür; tavana dönüş (2 cm yükselirken 1,2 cm'den fazla geri çekilme, yaklaşık 30°) yüzün sonudur.
+            int top = -1;
+            for (int i = 0; i < n; i++)
+            {
+                if (!hit[i]) { if (top >= 0) break; continue; }
+                bool onFace = Mathf.Abs(zs[i] - extreme) < 0.7f;
+                if (!onFace) { if (top >= 0) break; continue; }
+                if (top >= 0 && hit[i - 1] && (zs[i - 1] - zs[i]) * dir > 0.012f) break;
+                top = i;
+            }
+            if (top < 0) return default;
+            faceTop = yLow + top * kStep;
+            float yc = faceTop - 0.04f - h * 0.5f;
+            int iUp = Mathf.Clamp(Mathf.RoundToInt((yc + h * 0.5f - yLow) / kStep), 0, n - 1);
+            int iDn = Mathf.Clamp(Mathf.RoundToInt((yc - h * 0.5f - yLow) / kStep), 0, n - 1);
+            float zUp = hit[iUp] ? zs[iUp] : extreme, zDn = hit[iDn] ? zs[iDn] : zUp;
+            // Eğim: üst kenar alttan ne kadar geride; tabela yüzeye paralel durur
+            float back = (zDn - zUp) * dir;
+            pitch = Mathf.Clamp(Mathf.Atan2(back, h) * Mathf.Rad2Deg, -10f, 45f);
+            float zc = (zUp + zDn) * 0.5f + 0.03f * dir;
+            Quaternion rot = dir > 0 ? Quaternion.Euler(-pitch, 0f, 0f) : Quaternion.Euler(-pitch, 180f, 0f);
+            return new Face { Pos = new Vector3(x0, yc, zc), Rot = rot, Size = new Vector2(w, h) };
+        }
+
+        /// <summary>
+        /// Eksene paralel bir doğrunun üçgenlerle kesişimi. axis 0: x boyunca (u = z, v = y); 1: y boyunca (u = x, v = z);
+        /// 2: z boyunca (u = x, v = y). En büyük (max) ya da en küçük kesişim değeri.
+        /// </summary>
+        private static bool Cast(List<Vector3> tri, int axis, float pu, float pv, bool max, out float result)
+        {
+            result = max ? float.MinValue : float.MaxValue;
+            bool any = false;
+            for (int i = 0; i + 2 < tri.Count; i += 3)
+            {
+                Vector3 a = tri[i], b = tri[i + 1], c = tri[i + 2];
+                float au, av, aw, bu, bv, bw, cu, cv, cw;
+                if (axis == 0) { au = a.z; av = a.y; aw = a.x; bu = b.z; bv = b.y; bw = b.x; cu = c.z; cv = c.y; cw = c.x; }
+                else if (axis == 1) { au = a.x; av = a.z; aw = a.y; bu = b.x; bv = b.z; bw = b.y; cu = c.x; cv = c.z; cw = c.y; }
+                else { au = a.x; av = a.y; aw = a.z; bu = b.x; bv = b.y; bw = b.z; cu = c.x; cv = c.y; cw = c.z; }
+                if (pu < Mathf.Min(au, Mathf.Min(bu, cu)) || pu > Mathf.Max(au, Mathf.Max(bu, cu))) continue;
+                if (pv < Mathf.Min(av, Mathf.Min(bv, cv)) || pv > Mathf.Max(av, Mathf.Max(bv, cv))) continue;
+                float d = (bv - cv) * (au - cu) + (cu - bu) * (av - cv);
+                if (Mathf.Abs(d) < 1e-9f) continue;
+                float l1 = ((bv - cv) * (pu - cu) + (cu - bu) * (pv - cv)) / d;
+                float l2 = ((cv - av) * (pu - cu) + (au - cu) * (pv - cv)) / d;
+                float l3 = 1f - l1 - l2;
+                if (l1 < -1e-4f || l2 < -1e-4f || l3 < -1e-4f) continue;
+                float w = l1 * aw + l2 * bw + l3 * cw;
+                result = max ? Mathf.Max(result, w) : Mathf.Min(result, w);
+                any = true;
+            }
+            return any;
         }
 
         // ---------------------------------------------------------------- dokular
