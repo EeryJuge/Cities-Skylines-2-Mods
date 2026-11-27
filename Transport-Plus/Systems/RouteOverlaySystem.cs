@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Colossal.Mathematics;
 using Game;
 using Game.Common;
@@ -191,6 +192,7 @@ namespace TransportPlus.Systems
                     try
                     {
                         CreateInfoview();
+                        HideInfoviewPanel();
                         if (s_Infoview != null) m_ToolSystem.infoview = s_Infoview;
                     }
                     catch (Exception e) { Mod.log.Warn(e, "White city view could not be turned on"); }
@@ -203,6 +205,43 @@ namespace TransportPlus.Systems
                 try { if (s_Infoview != null && m_ToolSystem.infoview == s_Infoview) m_ToolSystem.infoview = null; }
                 catch (Exception e) { Mod.log.Warn(e, "White city view could not be turned off"); }
             }
+        }
+
+        private static bool s_PanelHooked;
+
+        /// <summary>
+        /// Beyaz şehir oyunun bilgi görünümü olarak açıldığı için oyun kendi "etkin bilgi görünümü" panelini de
+        /// gösterir ("TRANSPORT+ ROUTES"). Oyunun arayüzüne giden "infoviews.activeInfoview" değerini yazan fonksiyon
+        /// sarılır: etkin görünüm bizimkiyse arayüze boş gider, panel açılmaz; diğer tüm görünümler olduğu gibi kalır.
+        /// Yama değil, yalnızca o bağın yazıcısı değiştirilir; bulunamazsa panel eskisi gibi görünür.
+        /// </summary>
+        private void HideInfoviewPanel()
+        {
+            if (s_PanelHooked) return;
+            s_PanelHooked = true;
+            try
+            {
+                var ui = World.GetExistingSystemManaged<Game.UI.InGame.InfoviewsUISystem>();
+                const BindingFlags kFlags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var bindingField = typeof(Game.UI.InGame.InfoviewsUISystem).GetField("m_ActiveView", kFlags);
+                var writerField = typeof(Colossal.UI.Binding.RawValueBinding).GetField("m_WriterDelegate", kFlags);
+                var binding = ui == null ? null : bindingField?.GetValue(ui) as Colossal.UI.Binding.RawValueBinding;
+                var original = binding == null ? null : writerField?.GetValue(binding) as Action<Colossal.UI.Binding.IJsonWriter>;
+                if (original == null)
+                {
+                    Mod.log.Warn("Infoview panel binding not found; the game's infoview panel stays visible with the routes");
+                    return;
+                }
+                ToolSystem tool = m_ToolSystem;
+                Action<Colossal.UI.Binding.IJsonWriter> writer = w =>
+                {
+                    if (s_Infoview != null && tool != null && tool.activeInfoview == s_Infoview) w.WriteNull();
+                    else original(w);
+                };
+                writerField.SetValue(binding, writer);
+                Mod.log.Info("Infoview panel hidden for the route view");
+            }
+            catch (Exception e) { Mod.log.Warn(e, "Could not hide the game's infoview panel for the route view"); }
         }
 
         private static bool WantWhite => Mod.Settings == null || Mod.Settings.WhiteCity;
